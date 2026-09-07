@@ -1,7 +1,7 @@
 // tests/deck.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { CARD_VALUES, SHOE_BASE, MODIFIERS_TOTAL, ACTIONS_TOTAL, TOTAL_CARDS } from '../app/deck.mjs';
+import { CARD_VALUES, SHOE_BASE, MODIFIER_TYPES, ACTION_TYPES, MODIFIERS_TOTAL, ACTIONS_TOTAL, TOTAL_CARDS } from '../app/deck.mjs';
 
 test('deck totals 108 cards', () => {
   assert.equal(TOTAL_CARDS, 108);
@@ -27,4 +27,20 @@ test('regular copy count equals card value for plain numbers', () => {
 test('modifier and action totals match the rulebook', () => {
   assert.equal(MODIFIERS_TOTAL, 6);
   assert.equal(ACTIONS_TOTAL, 10);
+});
+
+test('MODIFIER_TYPES and ACTION_TYPES sum to the existing totals', () => {
+  assert.equal(Object.keys(MODIFIER_TYPES).length, 6);
+  assert.equal(Object.keys(ACTION_TYPES).length, 5);
+  assert.equal(MODIFIERS_TOTAL, 6);
+  assert.equal(ACTIONS_TOTAL, 10);
+});
+
+test('every modifier type has max 1 and every action type has max 2', () => {
+  for (const type of Object.values(MODIFIER_TYPES)) assert.equal(type.max, 1);
+  for (const type of Object.values(ACTION_TYPES)) assert.equal(type.max, 2);
+});
+
+test('deck total is still 108 after deriving totals from the type maps', () => {
+  assert.equal(TOTAL_CARDS, 108);
 });
