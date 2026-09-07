@@ -1,6 +1,6 @@
 // app/app.mjs
 import { CARD_VALUES, SHOE_BASE, MODIFIERS_TOTAL, ACTIONS_TOTAL } from './deck.mjs';
-import { createEmptySeen, logCardSeen } from './shoe.mjs';
+import { createEmptySeen, logCardSeen, remainingCount } from './shoe.mjs';
 import { createEmptyLine, addCardToLine, addLucky13Card, addUnlucky7Card } from './line.mjs';
 import { recommend } from './engine.mjs';
 import { loadSeen, saveSeen, resetSeen, loadLine, saveLine, clearLine } from './storage.mjs';
@@ -27,8 +27,15 @@ function cardLabel(value, kind) {
 }
 
 function logMyCard(value, kind) {
+  let nextSeen;
+  try {
+    nextSeen = logCardSeen(seen, value, kind);
+  } catch (err) {
+    alert(err.message);
+    return;
+  }
   snapshot();
-  seen = logCardSeen(seen, value, kind);
+  seen = nextSeen;
   if (value === 7 && kind === 'special') {
     line = addUnlucky7Card(line);
   } else if (value === 13 && kind === 'special') {
@@ -42,15 +49,29 @@ function logMyCard(value, kind) {
 }
 
 function logOtherPlayerCard(value, kind) {
+  let nextSeen;
+  try {
+    nextSeen = logCardSeen(seen, value, kind);
+  } catch (err) {
+    alert(err.message);
+    return;
+  }
   snapshot();
-  seen = logCardSeen(seen, value, kind);
+  seen = nextSeen;
   saveSeen(seen);
   render();
 }
 
 function logOtherCard() {
+  let nextSeen;
+  try {
+    nextSeen = logCardSeen(seen, 'other', null);
+  } catch (err) {
+    alert(err.message);
+    return;
+  }
   snapshot();
-  seen = logCardSeen(seen, 'other', null);
+  seen = nextSeen;
   saveSeen(seen);
   render();
 }
@@ -62,6 +83,8 @@ function buildSeenGrid() {
       if (SHOE_BASE[v][kind] === 0) continue;
       const btn = document.createElement('button');
       btn.textContent = cardLabel(v, kind);
+      btn.dataset.value = String(v);
+      btn.dataset.kind = kind;
       btn.addEventListener('click', () => logOtherPlayerCard(v, kind));
       container.appendChild(btn);
     }
@@ -79,6 +102,8 @@ function buildLineGrid() {
       if (SHOE_BASE[v][kind] === 0) continue;
       const btn = document.createElement('button');
       btn.textContent = cardLabel(v, kind);
+      btn.dataset.value = String(v);
+      btn.dataset.kind = kind;
       btn.addEventListener('click', () => logMyCard(v, kind));
       container.appendChild(btn);
     }
@@ -153,6 +178,12 @@ function render() {
       if (SHOE_BASE[v][kind] === 0) continue;
       const input = document.querySelector(`#manual-edit input[data-value="${v}"][data-kind="${kind}"]`);
       if (input) input.value = String(seen[v][kind]);
+
+      const exhausted = remainingCount(seen, v, kind) === 0;
+      const seenBtn = document.querySelector(`#seen-grid button[data-value="${v}"][data-kind="${kind}"]`);
+      if (seenBtn) seenBtn.disabled = exhausted;
+      const lineBtn = document.querySelector(`#line-grid button[data-value="${v}"][data-kind="${kind}"]`);
+      if (lineBtn) lineBtn.disabled = exhausted;
     }
   }
   const otherInput = document.getElementById('manual-other');
