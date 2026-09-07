@@ -1,6 +1,6 @@
 // app/app.mjs
-import { CARD_VALUES, SHOE_BASE, MODIFIERS_TOTAL, ACTIONS_TOTAL } from './deck.mjs';
-import { createEmptySeen, logCardSeen, remainingCount } from './shoe.mjs';
+import { CARD_VALUES, SHOE_BASE, MODIFIER_TYPES, ACTION_TYPES } from './deck.mjs';
+import { createEmptySeen, logCardSeen, logSpecialCardSeen, remainingCount } from './shoe.mjs';
 import { createEmptyLine, addCardToLine, addLucky13Card, addUnlucky7Card } from './line.mjs';
 import { recommend } from './engine.mjs';
 import { loadSeen, saveSeen, resetSeen, loadLine, saveLine, clearLine } from './storage.mjs';
@@ -62,10 +62,10 @@ function logOtherPlayerCard(value, kind) {
   render();
 }
 
-function logOtherCard() {
+function logSpecialCard(category, id) {
   let nextSeen;
   try {
-    nextSeen = logCardSeen(seen, 'other', null);
+    nextSeen = logSpecialCardSeen(seen, category, id);
   } catch (err) {
     alert(err.message);
     return;
@@ -89,10 +89,22 @@ function buildSeenGrid() {
       container.appendChild(btn);
     }
   }
-  const otherBtn = document.createElement('button');
-  otherBtn.textContent = 'Autre (modif/action)';
-  otherBtn.addEventListener('click', logOtherCard);
-  container.appendChild(otherBtn);
+  for (const [id, type] of Object.entries(MODIFIER_TYPES)) {
+    const btn = document.createElement('button');
+    btn.textContent = type.label;
+    btn.dataset.category = 'modifier';
+    btn.dataset.typeId = id;
+    btn.addEventListener('click', () => logSpecialCard('modifier', id));
+    container.appendChild(btn);
+  }
+  for (const [id, type] of Object.entries(ACTION_TYPES)) {
+    const btn = document.createElement('button');
+    btn.textContent = type.label;
+    btn.dataset.category = 'action';
+    btn.dataset.typeId = id;
+    btn.addEventListener('click', () => logSpecialCard('action', id));
+    container.appendChild(btn);
+  }
 }
 
 function buildLineGrid() {
@@ -108,6 +120,39 @@ function buildLineGrid() {
       container.appendChild(btn);
     }
   }
+}
+
+function recomputeOther(seen) {
+  const sum = (counts) => Object.values(counts).reduce((total, n) => total + n, 0);
+  return sum(seen.modifierTypes) + sum(seen.actionTypes);
+}
+
+function appendSpecialCardInput(container, category, id, type) {
+  const label = document.createElement('label');
+  label.textContent = `${type.label} vues : `;
+  const input = document.createElement('input');
+  input.type = 'number';
+  input.min = '0';
+  input.max = String(type.max);
+  input.dataset.category = category;
+  input.dataset.typeId = id;
+  input.addEventListener('change', () => {
+    const currentCounts = category === 'modifier' ? seen.modifierTypes : seen.actionTypes;
+    const parsed = Number(input.value);
+    if (!Number.isInteger(parsed) || parsed < 0 || parsed > type.max) {
+      input.value = String(currentCounts[id]);
+      return;
+    }
+    snapshot();
+    const key = category === 'modifier' ? 'modifierTypes' : 'actionTypes';
+    const nextSeen = { ...seen, [key]: { ...currentCounts, [id]: parsed } };
+    nextSeen.other = recomputeOther(nextSeen);
+    seen = nextSeen;
+    saveSeen(seen);
+    render();
+  });
+  label.appendChild(input);
+  container.appendChild(label);
 }
 
 function buildManualEdit() {
@@ -140,27 +185,19 @@ function buildManualEdit() {
     }
   }
 
-  const otherLabel = document.createElement('label');
-  otherLabel.textContent = 'Autres cartes (modif/action) vues : ';
-  const otherInput = document.createElement('input');
-  otherInput.type = 'number';
-  otherInput.min = '0';
-  otherInput.max = String(MODIFIERS_TOTAL + ACTIONS_TOTAL);
-  otherInput.id = 'manual-other';
-  otherInput.addEventListener('change', () => {
-    const max = MODIFIERS_TOTAL + ACTIONS_TOTAL;
-    const parsed = Number(otherInput.value);
-    if (!Number.isInteger(parsed) || parsed < 0 || parsed > max) {
-      otherInput.value = String(seen.other);
-      return;
-    }
-    snapshot();
-    seen = { ...seen, other: parsed };
-    saveSeen(seen);
-    render();
-  });
-  otherLabel.appendChild(otherInput);
-  container.appendChild(otherLabel);
+  for (const [id, type] of Object.entries(MODIFIER_TYPES)) {
+    appendSpecialCardInput(container, 'modifier', id, type);
+  }
+  for (const [id, type] of Object.entries(ACTION_TYPES)) {
+    appendSpecialCardInput(container, 'action', id, type);
+  }
+}
+
+function syncSpecialCardControls(category, id, type, count) {
+  const input = document.querySelector(`#manual-edit input[data-category="${category}"][data-type-id="${id}"]`);
+  if (input) input.value = String(count);
+  const btn = document.querySelector(`#seen-grid button[data-category="${category}"][data-type-id="${id}"]`);
+  if (btn) btn.disabled = count >= type.max;
 }
 
 function render() {
@@ -186,8 +223,12 @@ function render() {
       if (lineBtn) lineBtn.disabled = exhausted;
     }
   }
-  const otherInput = document.getElementById('manual-other');
-  if (otherInput) otherInput.value = String(seen.other);
+  for (const [id, type] of Object.entries(MODIFIER_TYPES)) {
+    syncSpecialCardControls('modifier', id, type, seen.modifierTypes[id]);
+  }
+  for (const [id, type] of Object.entries(ACTION_TYPES)) {
+    syncSpecialCardControls('action', id, type, seen.actionTypes[id]);
+  }
 }
 
 document.getElementById('undo-btn').addEventListener('click', () => {
