@@ -115,14 +115,24 @@ shoe.seen = {             // mutable, persists across rounds,
 }
 
 myLine = {
-  values: Set<number>,    // distinct values held this round (0-13)
-  count13: 0 | 1 | 2,     // 13-valued cards held (regular + Lucky 13 combined)
-  cardCount: number,      // number cards actually in hand (== values.size,
-                           // except +1 if count13 == 2, since Lucky 13 is a
-                           // second card that doesn't add a new distinct value)
-  rawScore: number,       // sum of held card values (0 if Zero held and no Flip 7 yet)
+  values: Set<number>,     // distinct values held this round (0-13)
+  hasRegular13: boolean,   // holding a plain "13" card
+  hasLucky13: boolean,     // holding the Lucky 13 special card
+  cardCount: number,       // number cards actually in hand (== values.size,
+                            // except +1 if both hasRegular13 and hasLucky13
+                            // are true, since Lucky 13 is a second card that
+                            // doesn't add a new distinct value)
+  rawScore: number,        // sum of held card values (0 if Zero held and no Flip 7 yet)
 }
 ```
+
+`hasRegular13`/`hasLucky13` are tracked as two separate flags rather than a
+single `0|1|2` counter because the bust rule depends on *which* card you
+already hold, not just how many: holding only the Lucky 13 and then
+drawing a regular 13 is always safe (that is the sanctioned pairing), but
+holding a regular 13 and drawing a second regular 13 always busts,
+regardless of Lucky 13. A single counter can't distinguish those two
+"one 13 held" states.
 
 `remaining(v, kind) = shoe.base[v][kind] - shoe.seen[v][kind]`
 `D = 108 - (Σ seen[v].regular + Σ seen[v].special + seen.other)`  — cards left undrawn in the shoe.
@@ -138,8 +148,11 @@ buckets on the next hit. The implementation must assert
   add `remaining(v, 'regular')`.
 - If `7 ∈ myLine.values`: add `remaining(7, 'regular')`.
   (The Unlucky 7 copy is never a bust risk — handled under U instead.)
-- If `myLine.count13 >= 1`: add `remaining(13, 'regular')`.
-  (The Lucky 13 copy is never a bust risk.)
+- If `myLine.hasRegular13`: add `remaining(13, 'regular')` — a further
+  regular 13 always busts once you already hold one.
+  (The Lucky 13 copy, `remaining(13,'special')`, is never a bust risk,
+  even when `hasRegular13` is true — drawing it then is exactly the
+  sanctioned second-13 pairing.)
 - Value 0 never contributes (only one copy exists in the whole game).
 
 **U — Unlucky 7 reset** (only meaningful, i.e. only a *loss*, when the
@@ -151,8 +164,8 @@ safe add and its copy is counted under S instead):
 **S — safe progress** (adds a new distinct value, possibly completing
 Flip 7): every `remaining(v, kind)` pair not already claimed by R or
 U above — i.e. every card whose value is not already held, plus the
-Lucky 13 copy if `count13 < 2`, plus the Unlucky 7 copy when the line
-is empty.
+Lucky 13 copy whenever it hasn't been drawn yet (`!hasLucky13`),
+plus the Unlucky 7 copy when the line is empty.
 
 **M — neutral**: `M = (shoe.modifiersTotal + shoe.actionsTotal) - shoe.seen.other`.
 
