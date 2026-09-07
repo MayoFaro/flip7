@@ -1,13 +1,14 @@
 // tests/line.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createEmptyLine, addCardToLine, addLucky13Card, addUnlucky7Card, computeRawScore } from '../app/line.mjs';
+import { createEmptyLine, addCardToLine, addLucky13Card, addUnlucky7Card, computeRawScore, removeCardFromLine } from '../app/line.mjs';
 
 test('createEmptyLine starts empty', () => {
   const line = createEmptyLine();
   assert.equal(line.values.size, 0);
   assert.equal(line.hasRegular13, false);
   assert.equal(line.hasLucky13, false);
+  assert.equal(line.sevenKind, null);
   assert.equal(line.cardCount, 0);
 });
 
@@ -74,4 +75,74 @@ test('computeRawScore counts normally once Flip 7 is completed, even with the Ze
   }
   assert.equal(line.cardCount, 7);
   assert.equal(computeRawScore(line), 21); // 0+1+2+3+4+5+6
+});
+
+test('addCardToLine sets sevenKind to regular when adding a plain 7', () => {
+  let line = createEmptyLine();
+  line = addCardToLine(line, 7);
+  assert.equal(line.sevenKind, 'regular');
+});
+
+test('addUnlucky7Card sets sevenKind to special', () => {
+  const line = addUnlucky7Card(createEmptyLine());
+  assert.equal(line.sevenKind, 'special');
+});
+
+test('removeCardFromLine removes a plain value and decrements cardCount', () => {
+  let line = createEmptyLine();
+  line = addCardToLine(line, 9);
+  line = removeCardFromLine(line, 9);
+  assert.equal(line.values.has(9), false);
+  assert.equal(line.cardCount, 0);
+});
+
+test('removeCardFromLine on a value not held is a no-op', () => {
+  const line = createEmptyLine();
+  const next = removeCardFromLine(line, 9);
+  assert.equal(next.values.size, 0);
+  assert.equal(next.cardCount, 0);
+});
+
+test('removeCardFromLine clears sevenKind when removing a 7', () => {
+  let line = createEmptyLine();
+  line = addCardToLine(line, 7);
+  line = removeCardFromLine(line, 7);
+  assert.equal(line.sevenKind, null);
+  assert.equal(line.values.has(7), false);
+});
+
+test('removeCardFromLine on 13 removes Lucky 13 first when both are held', () => {
+  let line = createEmptyLine();
+  line = addCardToLine(line, 13);
+  line = addLucky13Card(line);
+  line = removeCardFromLine(line, 13);
+  assert.equal(line.hasLucky13, false);
+  assert.equal(line.hasRegular13, true);
+  assert.equal(line.values.has(13), true);
+  assert.equal(line.cardCount, 1);
+});
+
+test('removeCardFromLine on 13 removes the regular 13 when only it is held', () => {
+  let line = createEmptyLine();
+  line = addCardToLine(line, 13);
+  line = removeCardFromLine(line, 13);
+  assert.equal(line.hasRegular13, false);
+  assert.equal(line.values.has(13), false);
+  assert.equal(line.cardCount, 0);
+});
+
+test('removeCardFromLine on 13 removes the Lucky 13 when only it is held', () => {
+  let line = addLucky13Card(createEmptyLine());
+  line = removeCardFromLine(line, 13);
+  assert.equal(line.hasLucky13, false);
+  assert.equal(line.values.has(13), false);
+  assert.equal(line.cardCount, 0);
+});
+
+test('removeCardFromLine does not mutate the input', () => {
+  let line = createEmptyLine();
+  line = addCardToLine(line, 9);
+  removeCardFromLine(line, 9);
+  assert.equal(line.values.has(9), true);
+  assert.equal(line.cardCount, 1);
 });
