@@ -1,15 +1,21 @@
-import { CARD_VALUES, SHOE_BASE, MODIFIERS_TOTAL, ACTIONS_TOTAL } from './deck.mjs';
+import { CARD_VALUES, SHOE_BASE, MODIFIERS_TOTAL, ACTIONS_TOTAL, MODIFIER_TYPES, ACTION_TYPES } from './deck.mjs';
 
 export function createEmptySeen() {
-  const seen = { other: 0 };
+  const seen = { other: 0, modifierTypes: {}, actionTypes: {} };
   for (const v of CARD_VALUES) {
     seen[v] = { regular: 0, special: 0 };
   }
+  for (const id of Object.keys(MODIFIER_TYPES)) seen.modifierTypes[id] = 0;
+  for (const id of Object.keys(ACTION_TYPES)) seen.actionTypes[id] = 0;
   return seen;
 }
 
 export function logCardSeen(seen, value, kind) {
-  const next = { other: seen.other };
+  const next = {
+    other: seen.other,
+    modifierTypes: { ...seen.modifierTypes },
+    actionTypes: { ...seen.actionTypes },
+  };
   for (const v of CARD_VALUES) next[v] = { ...seen[v] };
 
   if (value === 'other') {
@@ -43,4 +49,32 @@ export function totalUndrawn(seen) {
     MODIFIERS_TOTAL +
     ACTIONS_TOTAL;
   return totalCards - seenTotal;
+}
+
+function sumTypeCounts(typeCounts) {
+  return Object.values(typeCounts).reduce((sum, n) => sum + n, 0);
+}
+
+export function logSpecialCardSeen(seen, category, id) {
+  const types = category === 'modifier' ? MODIFIER_TYPES : ACTION_TYPES;
+  const max = types[id].max;
+  const currentTypeCounts = category === 'modifier' ? seen.modifierTypes : seen.actionTypes;
+  if (currentTypeCounts[id] + 1 > max) {
+    throw new Error(`Cannot log another ${id}: all ${max} already seen`);
+  }
+
+  const next = {
+    other: seen.other,
+    modifierTypes: { ...seen.modifierTypes },
+    actionTypes: { ...seen.actionTypes },
+  };
+  for (const v of CARD_VALUES) next[v] = { ...seen[v] };
+
+  if (category === 'modifier') {
+    next.modifierTypes[id] = seen.modifierTypes[id] + 1;
+  } else {
+    next.actionTypes[id] = seen.actionTypes[id] + 1;
+  }
+  next.other = sumTypeCounts(next.modifierTypes) + sumTypeCounts(next.actionTypes);
+  return next;
 }
