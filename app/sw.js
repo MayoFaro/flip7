@@ -10,6 +10,7 @@ const ASSETS = [
   './deck.mjs',
   './shoe.mjs',
   './line.mjs',
+  './round.mjs',
   './engine.mjs',
   './storage.mjs',
 ];
