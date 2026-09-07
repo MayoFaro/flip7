@@ -1,9 +1,20 @@
 // app/app.mjs
 import { CARD_VALUES, SHOE_BASE, MODIFIER_TYPES, ACTION_TYPES } from './deck.mjs';
 import { createEmptySeen, logCardSeen, logSpecialCardSeen, remainingCount } from './shoe.mjs';
-import { createEmptyLine, addCardToLine, addLucky13Card, addUnlucky7Card } from './line.mjs';
+import { createEmptyLine, addCardToLine, addLucky13Card, addUnlucky7Card, removeCardFromLine } from './line.mjs';
+import { createEmptyRoundSeen, logRoundCard, poolAvailable } from './round.mjs';
 import { recommend } from './engine.mjs';
-import { loadSeen, saveSeen, resetSeen, loadLine, saveLine, clearLine } from './storage.mjs';
+import {
+  loadSeen,
+  saveSeen,
+  resetSeen,
+  loadLine,
+  saveLine,
+  clearLine,
+  loadRoundSeen,
+  saveRoundSeen,
+  resetRoundSeen,
+} from './storage.mjs';
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
@@ -13,10 +24,11 @@ if ('serviceWorker' in navigator) {
 
 let seen = loadSeen();
 let line = loadLine();
+let roundSeen = loadRoundSeen();
 let previousState = null;
 
 function snapshot() {
-  previousState = { seen, line };
+  previousState = { seen, line, roundSeen };
 }
 
 function cardLabel(value, kind) {
@@ -27,15 +39,17 @@ function cardLabel(value, kind) {
 }
 
 function logMyCard(value, kind) {
-  let nextSeen;
+  let nextSeen, nextRoundSeen;
   try {
     nextSeen = logCardSeen(seen, value, kind);
+    nextRoundSeen = logRoundCard(roundSeen, value, kind);
   } catch (err) {
     alert(err.message);
     return;
   }
   snapshot();
   seen = nextSeen;
+  roundSeen = nextRoundSeen;
   if (value === 7 && kind === 'special') {
     line = addUnlucky7Card(line);
   } else if (value === 13 && kind === 'special') {
@@ -44,21 +58,45 @@ function logMyCard(value, kind) {
     line = addCardToLine(line, value);
   }
   saveSeen(seen);
+  saveRoundSeen(roundSeen);
+  saveLine(line);
+  render();
+}
+
+function removeMyCard(value) {
+  snapshot();
+  line = removeCardFromLine(line, value);
+  saveLine(line);
+  render();
+}
+
+function takeFromPool(value, kind) {
+  snapshot();
+  if (value === 7 && kind === 'special') {
+    line = addUnlucky7Card(line);
+  } else if (value === 13 && kind === 'special') {
+    line = addLucky13Card(line);
+  } else {
+    line = addCardToLine(line, value);
+  }
   saveLine(line);
   render();
 }
 
 function logOtherPlayerCard(value, kind) {
-  let nextSeen;
+  let nextSeen, nextRoundSeen;
   try {
     nextSeen = logCardSeen(seen, value, kind);
+    nextRoundSeen = logRoundCard(roundSeen, value, kind);
   } catch (err) {
     alert(err.message);
     return;
   }
   snapshot();
   seen = nextSeen;
+  roundSeen = nextRoundSeen;
   saveSeen(seen);
+  saveRoundSeen(roundSeen);
   render();
 }
 
@@ -200,6 +238,49 @@ function syncSpecialCardControls(category, id, type, count) {
   if (btn) btn.disabled = count >= type.max;
 }
 
+function renderMyCards() {
+  const container = document.getElementById('my-cards');
+  container.innerHTML = '';
+  const chips = [];
+  for (const v of line.values) {
+    if (v === 7) {
+      chips.push({ value: 7, kind: line.sevenKind });
+    } else if (v === 13) {
+      if (line.hasRegular13) chips.push({ value: 13, kind: 'regular' });
+      if (line.hasLucky13) chips.push({ value: 13, kind: 'special' });
+    } else {
+      chips.push({ value: v, kind: 'regular' });
+    }
+  }
+  for (const { value, kind } of chips) {
+    const chip = document.createElement('span');
+    chip.className = 'held-card';
+    chip.textContent = cardLabel(value, kind);
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.textContent = '×';
+    removeBtn.addEventListener('click', () => removeMyCard(value));
+    chip.appendChild(removeBtn);
+    container.appendChild(chip);
+  }
+}
+
+function renderPoolGrid() {
+  const container = document.getElementById('pool-grid-items');
+  container.innerHTML = '';
+  for (const v of CARD_VALUES) {
+    for (const kind of ['regular', 'special']) {
+      if (SHOE_BASE[v][kind] === 0) continue;
+      const available = poolAvailable(roundSeen, line, v, kind);
+      if (available <= 0) continue;
+      const btn = document.createElement('button');
+      btn.textContent = `${cardLabel(v, kind)} (${available})`;
+      btn.addEventListener('click', () => takeFromPool(v, kind));
+      container.appendChild(btn);
+    }
+  }
+}
+
 function render() {
   const result = recommend(seen, line);
   document.getElementById('prob-bust').textContent = (result.probabilities.bust * 100).toFixed(1);
@@ -229,22 +310,29 @@ function render() {
   for (const [id, type] of Object.entries(ACTION_TYPES)) {
     syncSpecialCardControls('action', id, type, seen.actionTypes[id]);
   }
+
+  renderMyCards();
+  renderPoolGrid();
 }
 
 document.getElementById('undo-btn').addEventListener('click', () => {
   if (!previousState) return;
   seen = previousState.seen;
   line = previousState.line;
+  roundSeen = previousState.roundSeen;
   previousState = null;
   saveSeen(seen);
   saveLine(line);
+  saveRoundSeen(roundSeen);
   render();
 });
 
 document.getElementById('new-round-btn').addEventListener('click', () => {
   snapshot();
   line = createEmptyLine();
+  roundSeen = createEmptyRoundSeen();
   clearLine();
+  resetRoundSeen();
   render();
 });
 
@@ -259,8 +347,10 @@ document.getElementById('new-game-btn').addEventListener('click', () => {
   snapshot();
   seen = createEmptySeen();
   line = createEmptyLine();
+  roundSeen = createEmptyRoundSeen();
   resetSeen();
   clearLine();
+  resetRoundSeen();
   render();
 });
 
