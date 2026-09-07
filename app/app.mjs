@@ -244,18 +244,23 @@ function renderMyCards() {
   const chips = [];
   for (const v of line.values) {
     if (v === 7) {
-      chips.push({ value: 7, kind: line.sevenKind });
+      chips.push({ value: 7, label: cardLabel(7, line.sevenKind) });
     } else if (v === 13) {
-      if (line.hasRegular13) chips.push({ value: 13, kind: 'regular' });
-      if (line.hasLucky13) chips.push({ value: 13, kind: 'special' });
+      if (line.hasRegular13 && line.hasLucky13) {
+        chips.push({ value: 13, label: '13 (+ Chance)' });
+      } else if (line.hasLucky13) {
+        chips.push({ value: 13, label: cardLabel(13, 'special') });
+      } else {
+        chips.push({ value: 13, label: cardLabel(13, 'regular') });
+      }
     } else {
-      chips.push({ value: v, kind: 'regular' });
+      chips.push({ value: v, label: cardLabel(v, 'regular') });
     }
   }
-  for (const { value, kind } of chips) {
+  for (const { value, label } of chips) {
     const chip = document.createElement('span');
     chip.className = 'held-card';
-    chip.textContent = cardLabel(value, kind);
+    chip.textContent = label;
     const removeBtn = document.createElement('button');
     removeBtn.type = 'button';
     removeBtn.textContent = '×';
