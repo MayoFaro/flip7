@@ -39,3 +39,31 @@ section {
   font-size: 1.5rem;
   font-weight: bold;
 }
+
+#my-cards, #pool-grid-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+#pool-grid-items button {
+  min-width: 3rem;
+  min-height: 3rem;
+  font-size: 1.1rem;
+}
+
+.held-card {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid #f4f4f4;
+  border-radius: 999px;
+}
+
+.held-card button {
+  min-width: 1.5rem;
+  min-height: 1.5rem;
+  line-height: 1;
+}
