@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Flip 7 – Assistant</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <h1>Flip 7 – Assistant hit/stay</h1>
+
+  <section id="result-panel">
+    <p>Bust : <span id="prob-bust">–</span>%</p>
+    <p>Reset (Malchance 7) : <span id="prob-reset">–</span>%</p>
+    <p>Progression : <span id="prob-progress">–</span>%</p>
+    <p>Neutre : <span id="prob-neutral">–</span>%</p>
+    <p>Score actuel (si stay) : <span id="raw-score">0</span></p>
+    <p>Valeur espérée (si hit) : <span id="ev-value">0</span></p>
+    <p id="recommendation">–</p>
+  </section>
+
+  <section id="controls">
+    <button id="undo-btn">Annuler dernière action</button>
+    <button id="new-round-btn">Nouveau round</button>
+    <button id="reshuffle-btn">Reshuffle (deck épuisé)</button>
+    <button id="new-game-btn">Nouvelle partie</button>
+  </section>
+
+  <section id="seen-grid">
+    <h2>Cartes vues qui ne restent pas dans ma ligne</h2>
+    <p>Cartes des autres joueurs, ou l'une de mes propres cartes si je viens de buster (elle compte quand même comme vue, mais ne va pas dans "ma ligne").</p>
+  </section>
+
+  <section id="line-grid">
+    <h2>Cartes que je garde dans ma ligne ce round</h2>
+    <p>Compte automatiquement aussi comme vue.</p>
+  </section>
+
+  <section id="manual-edit">
+    <h2>Correction manuelle du nombre de cartes vues</h2>
+  </section>
+
+  <script type="module" src="app.mjs"></script>
+</body>
+</html>

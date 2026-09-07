@@ -1,0 +1,41 @@
+:root {
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  padding: 1rem;
+  font-family: system-ui, sans-serif;
+  background: #1b1f3b;
+  color: #f4f4f4;
+}
+
+section {
+  margin-bottom: 1.5rem;
+}
+
+#seen-grid, #line-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+#seen-grid button, #line-grid button {
+  min-width: 3rem;
+  min-height: 3rem;
+  font-size: 1.1rem;
+}
+
+#manual-edit label {
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+#result-panel p {
+  margin: 0.25rem 0;
+}
+
+#recommendation {
+  font-size: 1.5rem;
+  font-weight: bold;
+}
