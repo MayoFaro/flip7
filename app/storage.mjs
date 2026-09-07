@@ -2,8 +2,8 @@ import { createEmptySeen } from './shoe.mjs';
 import { createEmptyLine } from './line.mjs';
 import { createEmptyRoundSeen } from './round.mjs';
 
-const SEEN_KEY = 'flip7.shoe.seen.v1';
-const LINE_KEY = 'flip7.myLine.v1';
+const SEEN_KEY = 'flip7.shoe.seen.v2';
+const LINE_KEY = 'flip7.myLine.v2';
 const ROUND_SEEN_KEY = 'flip7.round.seen.v1';
 
 export function loadSeen(store = localStorage) {

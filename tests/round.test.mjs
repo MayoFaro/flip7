@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CARD_VALUES } from '../app/deck.mjs';
 import { createEmptyRoundSeen, logRoundCard, mineCount, poolAvailable } from '../app/round.mjs';
-import { createEmptyLine, addCardToLine, addLucky13Card, addUnlucky7Card } from '../app/line.mjs';
+import { createEmptyLine, addCardToLine, addLucky13Card, addUnlucky7Card, removeCardFromLine } from '../app/line.mjs';
 
 test('createEmptyRoundSeen starts with nothing seen for every Number card value', () => {
   const roundSeen = createEmptyRoundSeen();
@@ -19,10 +19,11 @@ test('logRoundCard increments without mutating the input', () => {
   assert.equal(next[9].regular, 1);
 });
 
-test('logRoundCard throws once a value/kind exceeds the deck copies for it', () => {
+test('logRoundCard clamps at the deck copy count instead of throwing', () => {
   let roundSeen = createEmptyRoundSeen();
   roundSeen = logRoundCard(roundSeen, 1, 'regular'); // only 1 copy of value 1 exists
-  assert.throws(() => logRoundCard(roundSeen, 1, 'regular'), /Cannot log another/);
+  roundSeen = logRoundCard(roundSeen, 1, 'regular'); // would exceed 1, but must clamp, not throw
+  assert.equal(roundSeen[1].regular, 1);
 });
 
 test('mineCount is 0 for a value not held', () => {
@@ -68,4 +69,24 @@ test('poolAvailable distinguishes a regular 7 from an Unlucky 7 revealed this ro
   line = addCardToLine(line, 7); // I hold the regular one
   assert.equal(poolAvailable(roundSeen, line, 7, 'regular'), 0);
   assert.equal(poolAvailable(roundSeen, line, 7, 'special'), 1);
+});
+
+test('poolAvailable is restored after a card taken into the line is later removed from it', () => {
+  let roundSeen = createEmptyRoundSeen();
+  roundSeen = logRoundCard(roundSeen, 9, 'regular');
+  let line = createEmptyLine();
+  line = addCardToLine(line, 9);
+  line = removeCardFromLine(line, 9);
+  assert.equal(poolAvailable(roundSeen, line, 9, 'regular'), 1);
+});
+
+test('poolAvailable accounts for both kinds of a doubled 13', () => {
+  let roundSeen = createEmptyRoundSeen();
+  roundSeen = logRoundCard(roundSeen, 13, 'regular');
+  roundSeen = logRoundCard(roundSeen, 13, 'special');
+  let line = createEmptyLine();
+  line = addCardToLine(line, 13);
+  line = addLucky13Card(line);
+  assert.equal(poolAvailable(roundSeen, line, 13, 'regular'), 0);
+  assert.equal(poolAvailable(roundSeen, line, 13, 'special'), 0);
 });

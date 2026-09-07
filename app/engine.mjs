@@ -64,7 +64,7 @@ export function computeProbabilities(buckets) {
   return { bust: R / D, reset: U / D, progress: S / D, neutral: M / D };
 }
 
-function isSafeCard(line, v, kind) {
+export function isSafeCard(line, v, kind) {
   if (v === 13 && kind === 'special') return true;      // Lucky 13 never busts
   if (v === 13 && kind === 'regular') return !line.hasRegular13;
   if (v === 7 && kind === 'regular') return !line.values.has(7);

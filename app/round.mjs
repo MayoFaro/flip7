@@ -14,10 +14,7 @@ export function logRoundCard(roundSeen, value, kind) {
   for (const v of CARD_VALUES) next[v] = { ...roundSeen[v] };
 
   const max = SHOE_BASE[value][kind];
-  if (roundSeen[value][kind] + 1 > max) {
-    throw new Error(`Cannot log another ${value}/${kind} this round: all ${max} already seen`);
-  }
-  next[value][kind] = roundSeen[value][kind] + 1;
+  next[value][kind] = Math.min(roundSeen[value][kind] + 1, max);
   return next;
 }
 

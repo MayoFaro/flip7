@@ -1,5 +1,5 @@
 // app/sw.js
-const CACHE_NAME = 'flip7-assistant-v1';
+const CACHE_NAME = 'flip7-assistant-v2';
 const ASSETS = [
   './',
   './index.html',

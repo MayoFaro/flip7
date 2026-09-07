@@ -3,7 +3,7 @@ import { CARD_VALUES, SHOE_BASE, MODIFIER_TYPES, ACTION_TYPES } from './deck.mjs
 import { createEmptySeen, logCardSeen, logSpecialCardSeen, remainingCount } from './shoe.mjs';
 import { createEmptyLine, addCardToLine, addLucky13Card, addUnlucky7Card, removeCardFromLine } from './line.mjs';
 import { createEmptyRoundSeen, logRoundCard, poolAvailable } from './round.mjs';
-import { recommend } from './engine.mjs';
+import { recommend, isSafeCard } from './engine.mjs';
 import {
   loadSeen,
   saveSeen,
@@ -71,6 +71,11 @@ function removeMyCard(value) {
 }
 
 function takeFromPool(value, kind) {
+  const isUnluckySeven = value === 7 && kind === 'special';
+  if (!isUnluckySeven && !isSafeCard(line, value, kind)) {
+    alert('Cette carte est déjà dans votre ligne — la prendre vous ferait buster.');
+    return;
+  }
   snapshot();
   if (value === 7 && kind === 'special') {
     line = addUnlucky7Card(line);
