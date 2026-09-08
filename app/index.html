@@ -11,38 +11,47 @@
 <body>
   <h1>Flip 7 – Assistant hit/stay</h1>
 
-  <section id="result-panel">
-    <p>Bust : <span id="prob-bust">–</span>%</p>
-    <p>Reset (Malchance 7) : <span id="prob-reset">–</span>%</p>
-    <p>Progression : <span id="prob-progress">–</span>%</p>
-    <p>Neutre : <span id="prob-neutral">–</span>%</p>
-    <p>Score actuel (si stay) : <span id="raw-score">0</span></p>
-    <p>Valeur espérée (si hit) : <span id="ev-value">0</span></p>
-    <p id="recommendation">–</p>
-  </section>
+  <div id="status-bar">
+    <section id="result-panel">
+      <p id="bust-line">Bust : <span id="prob-bust">–</span>%</p>
+      <p id="recommendation">–</p>
+    </section>
 
-  <section id="controls">
-    <button id="undo-btn">Annuler dernière action</button>
-    <button id="new-round-btn">Nouveau round</button>
-    <button id="reshuffle-btn">Reshuffle (deck épuisé)</button>
-    <button id="new-game-btn">Nouvelle partie</button>
-  </section>
+    <section id="controls">
+      <button id="undo-btn">Annuler</button>
+      <button id="new-round-btn">Round</button>
+      <button id="reshuffle-btn">Reshuffle</button>
+      <button id="new-game-btn">Partie</button>
+    </section>
+  </div>
 
-  <section id="seen-grid">
-    <h2>Cartes vues qui ne restent pas dans ma ligne</h2>
-    <p>Cartes des autres joueurs, ou l'une de mes propres cartes si je viens de buster (elle compte quand même comme vue, mais ne va pas dans "ma ligne").</p>
-  </section>
+  <div id="catalogs-row">
+    <section id="seen-grid">
+      <h2>Autres joueurs</h2>
+      <p>Ou mes cartes si je buste.</p>
+      <div class="chip-columns">
+        <div id="seen-grid-numbers" class="chip-row"></div>
+        <div id="seen-grid-specials" class="chip-row"></div>
+      </div>
+    </section>
 
-  <section id="line-grid">
-    <h2>Cartes que je garde dans ma ligne ce round</h2>
-    <p>Compte automatiquement aussi comme vue.</p>
-    <div id="my-cards"></div>
-  </section>
+    <section id="line-grid">
+      <h2>Ma ligne</h2>
+      <h3>Actuelle</h3>
+      <div id="my-cards"></div>
+      <h3>Ajouter</h3>
+      <div class="chip-columns">
+        <div id="line-grid-numbers" class="chip-row"></div>
+        <div id="line-grid-specials" class="chip-row"></div>
+      </div>
+    </section>
 
-  <section id="pool-grid">
-    <h2>Disponible pour échange (déjà tiré ce round, pas dans ma ligne)</h2>
-    <div id="pool-grid-items"></div>
-  </section>
+    <section id="pool-grid">
+      <h2>Échange</h2>
+      <p>Déjà tiré, pas dans ma ligne.</p>
+      <div id="pool-grid-items"></div>
+    </section>
+  </div>
 
   <section id="manual-edit">
     <h2>Correction manuelle du nombre de cartes vues</h2>

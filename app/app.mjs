@@ -26,9 +26,16 @@ let seen = loadSeen();
 let line = loadLine();
 let roundSeen = loadRoundSeen();
 let previousState = null;
+let pendingPoolSelection = null; // { value, kind } awaiting a "Ma ligne" card to swap with
 
 function snapshot() {
   previousState = { seen, line, roundSeen };
+}
+
+function addCardByKind(currentLine, value, kind) {
+  if (value === 7 && kind === 'special') return addUnlucky7Card(currentLine);
+  if (value === 13 && kind === 'special') return addLucky13Card(currentLine);
+  return addCardToLine(currentLine, value);
 }
 
 function cardLabel(value, kind) {
@@ -50,13 +57,7 @@ function logMyCard(value, kind) {
   snapshot();
   seen = nextSeen;
   roundSeen = nextRoundSeen;
-  if (value === 7 && kind === 'special') {
-    line = addUnlucky7Card(line);
-  } else if (value === 13 && kind === 'special') {
-    line = addLucky13Card(line);
-  } else {
-    line = addCardToLine(line, value);
-  }
+  line = addCardByKind(line, value, kind);
   saveSeen(seen);
   saveRoundSeen(roundSeen);
   saveLine(line);
@@ -70,20 +71,38 @@ function removeMyCard(value) {
   render();
 }
 
-function takeFromPool(value, kind) {
+// Single click target for a held card: completes a pending swap if one is
+// selected in the pool, otherwise removes the card outright (a plain steal
+// against the player, no exchange). Replaces a separate "remove" sub-button,
+// which was easy to mis-tap on a small chip and gave no visual benefit —
+// there's no legitimate "keep a duplicate" case in this game, so a held
+// card only ever needs this one action.
+function myCardClick(value) {
+  if (pendingPoolSelection) {
+    completeSwap(value);
+  } else {
+    removeMyCard(value);
+  }
+}
+
+// Completes a pending pool selection by swapping it with one of the player's
+// currently held cards: `removeValue` leaves the line, the pending pool card
+// takes its place. Safety is checked against the line *after* the removal,
+// since giving up a card can make an otherwise-busting take safe again.
+function completeSwap(removeValue) {
+  if (!pendingPoolSelection) return;
+  const { value, kind } = pendingPoolSelection;
   const isUnluckySeven = value === 7 && kind === 'special';
-  if (!isUnluckySeven && !isSafeCard(line, value, kind)) {
+  const lineAfterRemoval = removeCardFromLine(line, removeValue);
+  if (!isUnluckySeven && !isSafeCard(lineAfterRemoval, value, kind)) {
     alert('Cette carte est déjà dans votre ligne — la prendre vous ferait buster.');
+    pendingPoolSelection = null;
+    render();
     return;
   }
   snapshot();
-  if (value === 7 && kind === 'special') {
-    line = addUnlucky7Card(line);
-  } else if (value === 13 && kind === 'special') {
-    line = addLucky13Card(line);
-  } else {
-    line = addCardToLine(line, value);
-  }
+  line = addCardByKind(lineAfterRemoval, value, kind);
+  pendingPoolSelection = null;
   saveLine(line);
   render();
 }
@@ -119,19 +138,18 @@ function logSpecialCard(category, id) {
   render();
 }
 
-function buildSeenGrid() {
-  const container = document.getElementById('seen-grid');
-  for (const v of CARD_VALUES) {
-    for (const kind of ['regular', 'special']) {
-      if (SHOE_BASE[v][kind] === 0) continue;
-      const btn = document.createElement('button');
-      btn.textContent = cardLabel(v, kind);
-      btn.dataset.value = String(v);
-      btn.dataset.kind = kind;
-      btn.addEventListener('click', () => logOtherPlayerCard(v, kind));
-      container.appendChild(btn);
-    }
-  }
+// Flip 7's own rulebook calls 0, Unlucky 7, and Lucky 13 the three
+// "Special Number Cards" — grouped with Modifier/Action cards in the
+// "specials" column, not with the plain 1-13 number progression.
+function isSpecialNumberCard(value, kind) {
+  return (value === 0 || value === 7 || value === 13) && kind === 'special';
+}
+
+// Modifier/Action buttons log to the same shared shoe tally regardless of
+// which zone they're tapped in — Line never tracks who holds a modifier,
+// only how many remain in the shoe — so both "Autres joueurs" and "Ma
+// ligne" get the identical set of buttons wired to the identical handler.
+function appendSpecialCardButtons(container) {
   for (const [id, type] of Object.entries(MODIFIER_TYPES)) {
     const btn = document.createElement('button');
     btn.textContent = type.label;
@@ -150,8 +168,26 @@ function buildSeenGrid() {
   }
 }
 
+function buildSeenGrid() {
+  const numbers = document.getElementById('seen-grid-numbers');
+  const specials = document.getElementById('seen-grid-specials');
+  for (const v of CARD_VALUES) {
+    for (const kind of ['regular', 'special']) {
+      if (SHOE_BASE[v][kind] === 0) continue;
+      const btn = document.createElement('button');
+      btn.textContent = cardLabel(v, kind);
+      btn.dataset.value = String(v);
+      btn.dataset.kind = kind;
+      btn.addEventListener('click', () => logOtherPlayerCard(v, kind));
+      (isSpecialNumberCard(v, kind) ? specials : numbers).appendChild(btn);
+    }
+  }
+  appendSpecialCardButtons(specials);
+}
+
 function buildLineGrid() {
-  const container = document.getElementById('line-grid');
+  const numbers = document.getElementById('line-grid-numbers');
+  const specials = document.getElementById('line-grid-specials');
   for (const v of CARD_VALUES) {
     for (const kind of ['regular', 'special']) {
       if (SHOE_BASE[v][kind] === 0) continue;
@@ -160,9 +196,10 @@ function buildLineGrid() {
       btn.dataset.value = String(v);
       btn.dataset.kind = kind;
       btn.addEventListener('click', () => logMyCard(v, kind));
-      container.appendChild(btn);
+      (isSpecialNumberCard(v, kind) ? specials : numbers).appendChild(btn);
     }
   }
+  appendSpecialCardButtons(specials);
 }
 
 function recomputeOther(seen) {
@@ -239,8 +276,13 @@ function buildManualEdit() {
 function syncSpecialCardControls(category, id, type, count) {
   const input = document.querySelector(`#manual-edit input[data-category="${category}"][data-type-id="${id}"]`);
   if (input) input.value = String(count);
-  const btn = document.querySelector(`#seen-grid button[data-category="${category}"][data-type-id="${id}"]`);
-  if (btn) btn.disabled = count >= type.max;
+  const disabled = count >= type.max;
+  // The same Modifier/Action buttons appear in both zones (shared tally) —
+  // both copies must stay in sync.
+  const seenBtn = document.querySelector(`#seen-grid-specials button[data-category="${category}"][data-type-id="${id}"]`);
+  if (seenBtn) seenBtn.disabled = disabled;
+  const lineBtn = document.querySelector(`#line-grid-specials button[data-category="${category}"][data-type-id="${id}"]`);
+  if (lineBtn) lineBtn.disabled = disabled;
 }
 
 function renderMyCards() {
@@ -263,14 +305,11 @@ function renderMyCards() {
     }
   }
   for (const { value, label } of chips) {
-    const chip = document.createElement('span');
+    const chip = document.createElement('button');
+    chip.type = 'button';
     chip.className = 'held-card';
     chip.textContent = label;
-    const removeBtn = document.createElement('button');
-    removeBtn.type = 'button';
-    removeBtn.textContent = '×';
-    removeBtn.addEventListener('click', () => removeMyCard(value));
-    chip.appendChild(removeBtn);
+    chip.addEventListener('click', () => myCardClick(value));
     container.appendChild(chip);
   }
 }
@@ -285,7 +324,13 @@ function renderPoolGrid() {
       if (available <= 0) continue;
       const btn = document.createElement('button');
       btn.textContent = `${cardLabel(v, kind)} (${available})`;
-      btn.addEventListener('click', () => takeFromPool(v, kind));
+      if (pendingPoolSelection && pendingPoolSelection.value === v && pendingPoolSelection.kind === kind) {
+        btn.classList.add('pool-selected');
+      }
+      btn.addEventListener('click', () => {
+        pendingPoolSelection = { value: v, kind };
+        render();
+      });
       container.appendChild(btn);
     }
   }
@@ -294,11 +339,6 @@ function renderPoolGrid() {
 function render() {
   const result = recommend(seen, line);
   document.getElementById('prob-bust').textContent = (result.probabilities.bust * 100).toFixed(1);
-  document.getElementById('prob-reset').textContent = (result.probabilities.reset * 100).toFixed(1);
-  document.getElementById('prob-progress').textContent = (result.probabilities.progress * 100).toFixed(1);
-  document.getElementById('prob-neutral').textContent = (result.probabilities.neutral * 100).toFixed(1);
-  document.getElementById('raw-score').textContent = String(result.rawScore);
-  document.getElementById('ev-value').textContent = result.ev.toFixed(1);
   document.getElementById('recommendation').textContent = result.action;
 
   for (const v of CARD_VALUES) {
@@ -308,9 +348,13 @@ function render() {
       if (input) input.value = String(seen[v][kind]);
 
       const exhausted = remainingCount(seen, v, kind) === 0;
-      const seenBtn = document.querySelector(`#seen-grid button[data-value="${v}"][data-kind="${kind}"]`);
+      const seenBtn = document.querySelector(
+        `#seen-grid-numbers button[data-value="${v}"][data-kind="${kind}"], #seen-grid-specials button[data-value="${v}"][data-kind="${kind}"]`
+      );
       if (seenBtn) seenBtn.disabled = exhausted;
-      const lineBtn = document.querySelector(`#line-grid button[data-value="${v}"][data-kind="${kind}"]`);
+      const lineBtn = document.querySelector(
+        `#line-grid-numbers button[data-value="${v}"][data-kind="${kind}"], #line-grid-specials button[data-value="${v}"][data-kind="${kind}"]`
+      );
       if (lineBtn) lineBtn.disabled = exhausted;
     }
   }
@@ -363,6 +407,23 @@ document.getElementById('new-game-btn').addEventListener('click', () => {
   resetRoundSeen();
   render();
 });
+
+// Capture phase runs before any specific button's own click handler, so this
+// sees the DOM/state as it was at click time — before a handler like
+// renderPoolGrid()/render() might destructively rebuild the very element
+// that was clicked. Clicks inside the pool or the player's line are left to
+// their own handlers (selecting a new pool card, or completing a swap);
+// every other click cancels a pending pool selection with no side effect.
+document.addEventListener(
+  'click',
+  (event) => {
+    if (!pendingPoolSelection) return;
+    if (event.target.closest('#pool-grid, #my-cards')) return;
+    pendingPoolSelection = null;
+    render();
+  },
+  true
+);
 
 buildSeenGrid();
 buildLineGrid();

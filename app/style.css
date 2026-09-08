@@ -14,16 +14,91 @@ section {
   margin-bottom: 1.5rem;
 }
 
-#seen-grid, #line-grid {
+/* The three card zones sit side by side in one narrow row — never
+   full-width stacked sections. min-width: 0 lets a flex child shrink
+   below its content's natural width instead of overflowing. */
+#catalogs-row {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: 0.35rem;
+  align-items: flex-start;
 }
 
-#seen-grid button, #line-grid button {
-  min-width: 3rem;
-  min-height: 3rem;
-  font-size: 1.1rem;
+#catalogs-row > section {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+#seen-grid, #line-grid, #pool-grid {
+  border: 1px solid #4a4f78;
+  border-radius: 0.5rem;
+  padding: 0.5rem;
+  background: #232852;
+}
+
+#seen-grid h2, #line-grid h2, #pool-grid h2 {
+  margin-top: 0;
+  font-size: 0.9rem;
+}
+
+#line-grid h3 {
+  font-size: 0.75rem;
+  margin: 0.6rem 0 0.2rem;
+  opacity: 0.8;
+}
+
+#seen-grid p, #line-grid p {
+  margin: 0 0 0.4rem;
+  font-size: 0.7rem;
+  opacity: 0.8;
+}
+
+/* Within each zone, plain numbers and Special Number/Modifier/Action
+   cards sit in two side-by-side sub-columns rather than one long list. */
+.chip-columns {
+  display: flex;
+  gap: 0.3rem;
+}
+
+/* Each catalog sub-column: a strict one-per-row vertical list. Buttons
+   are sized to their own label, not stretched to fill the (already
+   narrow) column — the compact "spreadsheet column" look, not a
+   full-width bar per row. */
+.chip-row {
+  display: flex;
+  flex: 1 1 0;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.chip-row button {
+  width: auto;
+  min-height: 1.6rem;
+  padding: 0.15rem 0.4rem;
+  font-size: 0.75rem;
+  text-align: left;
+}
+
+/* Short, dynamic lists (my current line, the swap pool): few items in
+   practice, so a compact horizontal strip of small chips is fine here.
+   flex-wrap only actually wraps once the column above has narrowed the
+   available width — that's the point of putting these inside the same
+   narrow column rather than a full-width section. */
+#my-cards, #pool-grid-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-top: 0.25rem;
+  margin-bottom: 0.5rem;
+  max-width: 100%;
+}
+
+#pool-grid-items button {
+  min-width: 1.9rem;
+  min-height: 1.9rem;
+  padding: 0.15rem 0.3rem;
+  font-size: 0.75rem;
 }
 
 #manual-edit label {
@@ -31,39 +106,67 @@ section {
   margin-bottom: 0.25rem;
 }
 
+/* Status + controls share one compact row instead of stacking. */
+#status-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+#result-panel, #controls {
+  margin-bottom: 0;
+}
+
+#result-panel {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
 #result-panel p {
-  margin: 0.25rem 0;
+  margin: 0;
+}
+
+#bust-line {
+  font-size: 1rem;
 }
 
 #recommendation {
-  font-size: 1.5rem;
+  font-size: 1.4rem;
   font-weight: bold;
 }
 
-#my-cards, #pool-grid-items {
+#controls {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
-}
-
-#pool-grid-items button {
-  min-width: 3rem;
-  min-height: 3rem;
-  font-size: 1.1rem;
-}
-
-.held-card {
-  display: inline-flex;
-  align-items: center;
   gap: 0.25rem;
-  padding: 0.25rem 0.5rem;
+}
+
+#controls button {
+  font-size: 0.7rem;
+  padding: 0.25rem 0.4rem;
+}
+
+/* A held card is a single tappable chip: tap completes a pending swap,
+   or removes the card outright when nothing is pending. No separate
+   remove sub-button — that split target was easy to mis-tap and gave
+   no benefit, since a duplicate value only ever means "bust" here. */
+.held-card {
+  display: inline-block;
+  padding: 0.15rem 0.45rem;
   border: 1px solid #f4f4f4;
   border-radius: 999px;
+  background: #2f3566;
+  color: #f4f4f4;
+  font-size: 0.75rem;
 }
 
-.held-card button {
-  min-width: 1.5rem;
-  min-height: 1.5rem;
-  line-height: 1;
+#pool-grid-items button.pool-selected {
+  background: #f4c95d;
+  color: #1b1f3b;
+  border-color: #f4c95d;
+  font-weight: bold;
 }
