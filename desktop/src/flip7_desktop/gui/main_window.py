@@ -364,11 +364,3 @@ class MainWindow(QMainWindow):
                 f"{type_def['label']} ({count})", partial(self._on_claim_pool_modifier, "modifier", type_id)
             )
             self.pool_layout.addWidget(btn)
-        for type_id, type_def in ACTION_TYPES.items():
-            count = self.manager.round_seen["action_types"][type_id]
-            if count <= 0:
-                continue
-            btn = make_pool_badge(
-                f"{type_def['label']} ({count})", partial(self._on_claim_pool_modifier, "action", type_id)
-            )
-            self.pool_layout.addWidget(btn)

@@ -119,7 +119,7 @@ def test_special_card_button_disables_both_copies_at_max(qapp, tmp_path):
     assert all(not b.isEnabled() for b in buttons)  # 2 of 2 max -- both disabled
 
 
-# -- Claiming a Modifier/Action badge from the pool -----------------------
+# -- Claiming a Modifier badge from the pool -----------------------
 
 
 def test_claim_pool_modifier_decrements_round_pool_leaves_line_unchanged(qapp, tmp_path):
@@ -132,6 +132,21 @@ def test_claim_pool_modifier_decrements_round_pool_leaves_line_unchanged(qapp, t
 
     assert window.manager.round_seen["modifier_types"]["minus2"] == 0
     assert window.manager.line.card_count == card_count_before
+
+
+def test_action_cards_never_appear_as_pool_badges(qapp, tmp_path):
+    # Action cards (swap, steal, discard, ...) are played immediately and
+    # are never a valid swap/claim target -- unlike Modifiers, they must
+    # never show up in the "Échange" pool, regardless of how many were
+    # revealed this round.
+    window = MainWindow(state_path=tmp_path / "state.json")
+    window._on_log_special_card("action", "swap")
+    window._on_log_special_card("action", "steal")
+
+    assert window.manager.round_seen["action_types"]["swap"] == 1
+    assert window.manager.round_seen["action_types"]["steal"] == 1
+    pool_texts = [window.pool_layout.itemAt(i).widget().text() for i in range(window.pool_layout.count())]
+    assert not any("Échange" in text or "Vol" in text for text in pool_texts)
 
 
 # -- Undo, including a chain of two in a row ------------------------------
