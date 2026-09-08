@@ -4,7 +4,7 @@ import { createEmptyRoundSeen } from './round.mjs';
 
 const SEEN_KEY = 'flip7.shoe.seen.v2';
 const LINE_KEY = 'flip7.myLine.v2';
-const ROUND_SEEN_KEY = 'flip7.round.seen.v1';
+const ROUND_SEEN_KEY = 'flip7.round.seen.v2'; // v2 adds modifierTypes/actionTypes
 
 export function loadSeen(store = localStorage) {
   const raw = store.getItem(SEEN_KEY);

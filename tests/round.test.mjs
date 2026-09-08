@@ -1,8 +1,8 @@
 // tests/round.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { CARD_VALUES } from '../app/deck.mjs';
-import { createEmptyRoundSeen, logRoundCard, mineCount, poolAvailable } from '../app/round.mjs';
+import { CARD_VALUES, MODIFIER_TYPES, ACTION_TYPES } from '../app/deck.mjs';
+import { createEmptyRoundSeen, logRoundCard, logRoundSpecialCard, mineCount, poolAvailable } from '../app/round.mjs';
 import { createEmptyLine, addCardToLine, addLucky13Card, addUnlucky7Card, removeCardFromLine } from '../app/line.mjs';
 
 test('createEmptyRoundSeen starts with nothing seen for every Number card value', () => {
@@ -10,6 +10,34 @@ test('createEmptyRoundSeen starts with nothing seen for every Number card value'
   for (const v of CARD_VALUES) {
     assert.deepEqual(roundSeen[v], { regular: 0, special: 0 });
   }
+});
+
+test('createEmptyRoundSeen also initializes every modifier/action type to 0', () => {
+  const roundSeen = createEmptyRoundSeen();
+  for (const id of Object.keys(MODIFIER_TYPES)) assert.equal(roundSeen.modifierTypes[id], 0);
+  for (const id of Object.keys(ACTION_TYPES)) assert.equal(roundSeen.actionTypes[id], 0);
+});
+
+test('logRoundSpecialCard increments without mutating the input', () => {
+  const roundSeen = createEmptyRoundSeen();
+  const next = logRoundSpecialCard(roundSeen, 'modifier', 'minus2');
+  assert.equal(roundSeen.modifierTypes.minus2, 0);
+  assert.equal(next.modifierTypes.minus2, 1);
+});
+
+test('logRoundSpecialCard clamps at the type\'s max instead of throwing', () => {
+  let roundSeen = createEmptyRoundSeen();
+  roundSeen = logRoundSpecialCard(roundSeen, 'modifier', 'minus2'); // max 1
+  roundSeen = logRoundSpecialCard(roundSeen, 'modifier', 'minus2'); // would exceed 1
+  assert.equal(roundSeen.modifierTypes.minus2, 1);
+});
+
+test('logRoundSpecialCard tracks actions independently of modifiers', () => {
+  let roundSeen = createEmptyRoundSeen();
+  roundSeen = logRoundSpecialCard(roundSeen, 'action', 'steal');
+  roundSeen = logRoundSpecialCard(roundSeen, 'action', 'steal');
+  assert.equal(roundSeen.actionTypes.steal, 2);
+  assert.equal(roundSeen.modifierTypes.minus2, 0);
 });
 
 test('logRoundCard increments without mutating the input', () => {

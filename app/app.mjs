@@ -2,7 +2,7 @@
 import { CARD_VALUES, SHOE_BASE, MODIFIER_TYPES, ACTION_TYPES } from './deck.mjs';
 import { createEmptySeen, logCardSeen, logSpecialCardSeen, remainingCount } from './shoe.mjs';
 import { createEmptyLine, addCardToLine, addLucky13Card, addUnlucky7Card, removeCardFromLine } from './line.mjs';
-import { createEmptyRoundSeen, logRoundCard, poolAvailable } from './round.mjs';
+import { createEmptyRoundSeen, logRoundCard, logRoundSpecialCard, poolAvailable } from './round.mjs';
 import { recommend, isSafeCard } from './engine.mjs';
 import {
   loadSeen,
@@ -22,20 +22,55 @@ if ('serviceWorker' in navigator) {
   });
 }
 
+const RECENT_CARDS_LIMIT = 5;
+
 let seen = loadSeen();
 let line = loadLine();
 let roundSeen = loadRoundSeen();
-let previousState = null;
+let recentCards = []; // last few revealed card labels, oldest first
+let undoStack = []; // unlimited history of {seen, line, roundSeen, recentCards} snapshots
 let pendingPoolSelection = null; // { value, kind } awaiting a "Ma ligne" card to swap with
 
 function snapshot() {
-  previousState = { seen, line, roundSeen };
+  undoStack.push({ seen, line, roundSeen, recentCards });
+}
+
+// Only actual reveal events (a card newly logged from the shoe) belong
+// here — taking a card from the swap pool, removing one, or claiming a
+// Modifier from the pool don't introduce a new card, so they don't push.
+function pushRecent(label) {
+  recentCards = [...recentCards, label].slice(-RECENT_CARDS_LIMIT);
 }
 
 function addCardByKind(currentLine, value, kind) {
   if (value === 7 && kind === 'special') return addUnlucky7Card(currentLine);
   if (value === 13 && kind === 'special') return addLucky13Card(currentLine);
   return addCardToLine(currentLine, value);
+}
+
+// Reconstructs a Seen tally that marks only the player's own currently
+// held cards as unavailable, everything else fresh. Used by "Reshuffle":
+// per the rulebook, a mid-round reshuffle only remixes the discard pile —
+// any card still in front of a player stays out of circulation. This tool
+// can only ever know about the player's own line (opponents' hands aren't
+// tracked), so it's a partial correction: it stops your own held cards
+// from wrongly reappearing as "available," but can't account for cards
+// still held by other players at the table.
+function seenFromMyLine(currentLine) {
+  let result = createEmptySeen();
+  for (const v of currentLine.values) {
+    if (v === 0) {
+      result = logCardSeen(result, 0, 'special');
+    } else if (v === 7) {
+      result = logCardSeen(result, 7, currentLine.sevenKind);
+    } else if (v === 13) {
+      if (currentLine.hasRegular13) result = logCardSeen(result, 13, 'regular');
+      if (currentLine.hasLucky13) result = logCardSeen(result, 13, 'special');
+    } else {
+      result = logCardSeen(result, v, 'regular');
+    }
+  }
+  return result;
 }
 
 function cardLabel(value, kind) {
@@ -58,6 +93,7 @@ function logMyCard(value, kind) {
   seen = nextSeen;
   roundSeen = nextRoundSeen;
   line = addCardByKind(line, value, kind);
+  pushRecent(cardLabel(value, kind));
   saveSeen(seen);
   saveRoundSeen(roundSeen);
   saveLine(line);
@@ -71,12 +107,10 @@ function removeMyCard(value) {
   render();
 }
 
-// Single click target for a held card: completes a pending swap if one is
-// selected in the pool, otherwise removes the card outright (a plain steal
-// against the player, no exchange). Replaces a separate "remove" sub-button,
-// which was easy to mis-tap on a small chip and gave no visual benefit —
-// there's no legitimate "keep a duplicate" case in this game, so a held
-// card only ever needs this one action.
+// Tapping a held card completes a pending swap if one is selected in the
+// pool; otherwise it removes the card outright, representing a Steal
+// against the player (nothing comes back in return). Both are single-step,
+// and both go through the same unlimited undo stack.
 function myCardClick(value) {
   if (pendingPoolSelection) {
     completeSwap(value);
@@ -119,6 +153,7 @@ function logOtherPlayerCard(value, kind) {
   snapshot();
   seen = nextSeen;
   roundSeen = nextRoundSeen;
+  pushRecent(cardLabel(value, kind));
   saveSeen(seen);
   saveRoundSeen(roundSeen);
   render();
@@ -134,7 +169,11 @@ function logSpecialCard(category, id) {
   }
   snapshot();
   seen = nextSeen;
+  roundSeen = logRoundSpecialCard(roundSeen, category, id);
+  const type = category === 'modifier' ? MODIFIER_TYPES[id] : ACTION_TYPES[id];
+  pushRecent(type.label);
   saveSeen(seen);
+  saveRoundSeen(roundSeen);
   render();
 }
 
@@ -314,6 +353,20 @@ function renderMyCards() {
   }
 }
 
+// A Modifier/Action card claimed from the pool has no Line-side effect —
+// Line never tracks who holds one, and a hand like {1,3,6,-8} has the
+// identical bust/EV math as {1,3,6} once the -8 is already logged as
+// seen. So "claiming" one is just removing it from the pool display
+// (someone has it now), the same single-tap "Steal" pattern as removing
+// a held Number card, and just as undoable via the same stack.
+function claimPoolModifier(category, id) {
+  snapshot();
+  const key = category === 'modifier' ? 'modifierTypes' : 'actionTypes';
+  roundSeen = { ...roundSeen, [key]: { ...roundSeen[key], [id]: roundSeen[key][id] - 1 } };
+  saveRoundSeen(roundSeen);
+  render();
+}
+
 function renderPoolGrid() {
   const container = document.getElementById('pool-grid-items');
   container.innerHTML = '';
@@ -334,12 +387,38 @@ function renderPoolGrid() {
       container.appendChild(btn);
     }
   }
+  // Modifier/Action cards: tap to claim one (Steal-style, single tap, no
+  // Line effect — see claimPoolModifier).
+  for (const [id, type] of Object.entries(MODIFIER_TYPES)) {
+    const count = roundSeen.modifierTypes[id];
+    if (count <= 0) continue;
+    const badge = document.createElement('button');
+    badge.type = 'button';
+    badge.className = 'pool-info-badge';
+    badge.textContent = `${type.label} (${count})`;
+    badge.addEventListener('click', () => claimPoolModifier('modifier', id));
+    container.appendChild(badge);
+  }
+  for (const [id, type] of Object.entries(ACTION_TYPES)) {
+    const count = roundSeen.actionTypes[id];
+    if (count <= 0) continue;
+    const badge = document.createElement('button');
+    badge.type = 'button';
+    badge.className = 'pool-info-badge';
+    badge.textContent = `${type.label} (${count})`;
+    badge.addEventListener('click', () => claimPoolModifier('action', id));
+    container.appendChild(badge);
+  }
 }
 
 function render() {
   const result = recommend(seen, line);
   document.getElementById('prob-bust').textContent = (result.probabilities.bust * 100).toFixed(1);
   document.getElementById('recommendation').textContent = result.action;
+  document.getElementById('deck-count').textContent = String(result.buckets.D);
+  document.getElementById('recent-cards').textContent = recentCards.length
+    ? recentCards.slice().reverse().join(', ')
+    : '–';
 
   for (const v of CARD_VALUES) {
     for (const kind of ['regular', 'special']) {
@@ -370,11 +449,12 @@ function render() {
 }
 
 document.getElementById('undo-btn').addEventListener('click', () => {
-  if (!previousState) return;
-  seen = previousState.seen;
-  line = previousState.line;
-  roundSeen = previousState.roundSeen;
-  previousState = null;
+  if (undoStack.length === 0) return;
+  const previous = undoStack.pop();
+  seen = previous.seen;
+  line = previous.line;
+  roundSeen = previous.roundSeen;
+  recentCards = previous.recentCards;
   saveSeen(seen);
   saveLine(line);
   saveRoundSeen(roundSeen);
@@ -392,8 +472,8 @@ document.getElementById('new-round-btn').addEventListener('click', () => {
 
 document.getElementById('reshuffle-btn').addEventListener('click', () => {
   snapshot();
-  seen = createEmptySeen();
-  resetSeen();
+  seen = seenFromMyLine(line);
+  saveSeen(seen);
   render();
 });
 

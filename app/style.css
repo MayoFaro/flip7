@@ -14,6 +14,27 @@ section {
   margin-bottom: 1.5rem;
 }
 
+/* Deck count sits next to the title, big enough to check against the
+   physical deck at a glance. */
+#title-bar {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+#title-bar h1 {
+  margin: 0;
+  font-size: 1.4rem;
+}
+
+#deck-count {
+  font-size: 2.4rem;
+  font-weight: bold;
+  color: #f4c95d;
+  line-height: 1;
+}
+
 /* The three card zones sit side by side in one narrow row — never
    full-width stacked sections. min-width: 0 lets a flex child shrink
    below its content's natural width instead of overflowing. */
@@ -101,6 +122,14 @@ section {
   font-size: 0.75rem;
 }
 
+/* Modifier/Action pool entries: clickable, but a single tap just claims
+   (removes) the card — no Line effect, unlike the number pool buttons —
+   so a distinct accent border signals "this button behaves differently". */
+.pool-info-badge {
+  border-color: #d98a5f;
+  color: #f4d9c8;
+}
+
 #manual-edit label {
   display: block;
   margin-bottom: 0.25rem;
@@ -122,6 +151,7 @@ section {
 
 #result-panel {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
   gap: 0.5rem;
 }
@@ -137,6 +167,12 @@ section {
 #recommendation {
   font-size: 1.4rem;
   font-weight: bold;
+}
+
+#recent-cards {
+  flex-basis: 100%;
+  font-size: 0.75rem;
+  opacity: 0.75;
 }
 
 #controls {

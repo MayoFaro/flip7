@@ -9,12 +9,16 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <h1>Flip 7 – Assistant hit/stay</h1>
+  <div id="title-bar">
+    <h1>Flip 7</h1>
+    <span id="deck-count" title="Cartes restantes non tirées dans le sabot">–</span>
+  </div>
 
   <div id="status-bar">
     <section id="result-panel">
       <p id="bust-line">Bust : <span id="prob-bust">–</span>%</p>
       <p id="recommendation">–</p>
+      <p id="recent-cards" title="Dernières cartes enregistrées">–</p>
     </section>
 
     <section id="controls">
