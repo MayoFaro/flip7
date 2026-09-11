@@ -1,7 +1,7 @@
 import pytest
 
 from flip7_desktop.shoe import create_empty_seen, log_card_seen
-from flip7_desktop.line import create_empty_line, add_card_to_line, add_lucky13_card
+from flip7_desktop.line import create_empty_line, add_card_to_line, add_lucky13_card, mark_busted
 from flip7_desktop.engine import (
     compute_buckets,
     assert_partition,
@@ -67,3 +67,10 @@ def test_recommend_stays_when_almost_every_card_busts():
     line = add_card_to_line(line, 13)
     result = recommend(create_empty_seen(), line)
     assert result.action == "STAY"
+
+
+def test_recommend_reports_busted_instead_of_hit_or_stay():
+    line = mark_busted(add_card_to_line(create_empty_line(), 5))
+    result = recommend(create_empty_seen(), line)
+    assert result.action == "BUSTED"
+    assert result.raw_score == 0

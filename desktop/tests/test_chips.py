@@ -13,6 +13,13 @@ def test_make_pool_number_button_marks_selected(qapp):
     assert btn.property("chipRole") == "poolSelected"
 
 
+def test_make_pool_number_button_wires_double_click_callback(qapp):
+    calls = []
+    btn = make_pool_number_button("9 (2)", lambda: None, on_double_click=lambda: calls.append(True))
+    btn.doubleClicked.emit()
+    assert calls == [True]
+
+
 def test_make_held_card_chip_role(qapp):
     btn = make_held_card_chip("5", lambda: None)
     assert btn.property("chipRole") == "held"

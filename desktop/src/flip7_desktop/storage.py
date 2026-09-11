@@ -7,7 +7,7 @@ from .shoe import create_empty_seen
 from .line import Line, create_empty_line
 from .round_tracker import create_empty_round_seen
 
-STATE_VERSION = 1
+STATE_VERSION = 2
 DEFAULT_STATE_PATH = Path.home() / ".flip7-desktop" / "state.json"
 
 
@@ -35,6 +35,7 @@ def _line_to_dict(line: Line) -> dict:
         "has_lucky_13": line.has_lucky_13,
         "seven_kind": line.seven_kind,
         "card_count": line.card_count,
+        "busted": line.busted,
     }
 
 
@@ -45,6 +46,7 @@ def _line_from_dict(data: dict) -> Line:
         has_lucky_13=data["has_lucky_13"],
         seven_kind=data["seven_kind"],
         card_count=data["card_count"],
+        busted=data["busted"],
     )
 
 

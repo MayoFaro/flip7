@@ -3,7 +3,7 @@ web app's app.mjs. Kept independent of any GUI toolkit so it can be
 unit-tested directly; gui/main_window.py is a thin wiring layer on top.
 """
 
-from .deck import MODIFIER_TYPES, ACTION_TYPES
+from .deck import CARD_VALUES, MODIFIER_TYPES, ACTION_TYPES
 from .shoe import create_empty_seen, log_card_seen, log_special_card_seen
 from .line import (
     create_empty_line,
@@ -11,6 +11,7 @@ from .line import (
     add_lucky13_card,
     add_unlucky7_card,
     remove_card_from_line,
+    mark_busted,
 )
 from .round_tracker import create_empty_round_seen, log_round_card, log_round_special_card, pool_available as _pool_available
 from .engine import recommend, is_safe_card
@@ -36,20 +37,22 @@ def add_card_by_kind(line, value: int, kind: str):
     return add_card_to_line(line, value)
 
 
-def seen_from_my_line(current_line) -> dict:
+def seen_from_round_in_play(round_seen: dict) -> dict:
+    """Rebuilds a shoe-lifetime `seen` tally that marks only cards revealed
+    *this round* as unavailable — everything from earlier, fully-resolved
+    rounds goes back into circulation on reshuffle, since those cards are
+    already in the discard pile. Action cards are excluded even though
+    they were revealed this round: they're played and discarded the
+    instant they're drawn, never sitting "on the table" the way a Number
+    or Modifier card does, so they return to circulation too."""
     result = create_empty_seen()
-    for v in current_line.values:
-        if v == 0:
-            result = log_card_seen(result, 0, "special")
-        elif v == 7:
-            result = log_card_seen(result, 7, current_line.seven_kind)
-        elif v == 13:
-            if current_line.has_regular_13:
-                result = log_card_seen(result, 13, "regular")
-            if current_line.has_lucky_13:
-                result = log_card_seen(result, 13, "special")
-        else:
-            result = log_card_seen(result, v, "regular")
+    for v in CARD_VALUES:
+        for kind in ("regular", "special"):
+            for _ in range(round_seen[v][kind]):
+                result = log_card_seen(result, v, kind)
+    for type_id, count in round_seen["modifier_types"].items():
+        for _ in range(count):
+            result = log_special_card_seen(result, "modifier", type_id)
     return result
 
 
@@ -75,12 +78,22 @@ class AppStateManager:
         self.recent_cards = (self.recent_cards + [label])[-RECENT_CARDS_LIMIT:]
 
     def log_my_card(self, value: int, kind: str):
+        is_unlucky_seven = value == 7 and kind == "special"
+        is_duplicate = not is_unlucky_seven and not is_safe_card(self.line, value, kind)
+
         next_seen = log_card_seen(self.seen, value, kind)
-        next_round_seen = log_round_card(self.round_seen, value, kind)
-        self._snapshot()
-        self.seen = next_seen
-        self.round_seen = next_round_seen
-        self.line = add_card_by_kind(self.line, value, kind)
+        if is_duplicate:
+            # A duplicate never joins the round's shared pool -- it's the
+            # card that busted me, not something anyone can trade for.
+            self._snapshot()
+            self.seen = next_seen
+            self.line = mark_busted(self.line)
+        else:
+            next_round_seen = log_round_card(self.round_seen, value, kind)
+            self._snapshot()
+            self.seen = next_seen
+            self.round_seen = next_round_seen
+            self.line = add_card_by_kind(self.line, value, kind)
         self._push_recent(card_label(value, kind))
 
     def remove_my_card(self, value: int):
@@ -104,6 +117,18 @@ class AppStateManager:
             raise SwapBlocked("Cette carte est déjà dans votre ligne — la prendre vous ferait buster.")
         self._snapshot()
         self.line = add_card_by_kind(line_after_removal, value, kind)
+        self.pending_pool_selection = None
+
+    def steal_pool_card(self, value: int, kind: str):
+        """Take a pool card directly into the line, giving up nothing in
+        return (double-click on a pool chip) — as opposed to complete_swap,
+        which trades it for one of the player's own held cards."""
+        is_unlucky_seven = value == 7 and kind == "special"
+        if not is_unlucky_seven and not is_safe_card(self.line, value, kind):
+            self.pending_pool_selection = None
+            raise SwapBlocked("Cette carte est déjà dans votre ligne — la prendre vous ferait buster.")
+        self._snapshot()
+        self.line = add_card_by_kind(self.line, value, kind)
         self.pending_pool_selection = None
 
     def log_other_player_card(self, value: int, kind: str):
@@ -157,13 +182,14 @@ class AppStateManager:
 
     def reshuffle(self):
         self._snapshot()
-        self.seen = seen_from_my_line(self.line)
+        self.seen = seen_from_round_in_play(self.round_seen)
 
     def new_game(self):
         self._snapshot()
         self.seen = create_empty_seen()
         self.line = create_empty_line()
         self.round_seen = create_empty_round_seen()
+        self.recent_cards = []
 
     def recommendation(self):
         return recommend(self.seen, self.line)

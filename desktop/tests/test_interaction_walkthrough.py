@@ -49,6 +49,22 @@ def test_log_my_card_adds_to_line_and_updates_recommendation(qapp, tmp_path):
     assert window.bust_label.text() == f"Bust : {expected.probabilities['bust'] * 100:.1f} %"
 
 
+# -- Drawing a duplicate for myself busts the round --------------------
+
+
+def test_duplicate_draw_busts_shows_busted_and_grays_out_add_buttons(qapp, tmp_path):
+    window = MainWindow(state_path=tmp_path / "state.json")
+    window._on_log_my_card(9, "regular")
+    window._on_log_my_card(9, "regular")  # a second 9 -- bust
+
+    assert window.manager.line.busted
+    assert window.recommendation_label.text() == "BUSTED"
+    for btn in window.line_buttons.values():
+        assert not btn.isEnabled()
+    # "Autres joueurs" stays active -- other players keep playing their turns.
+    assert window.seen_buttons[(5, "regular")].isEnabled()
+
+
 # -- Held-card chip click with nothing pending (Steal / remove) ----------
 
 
@@ -179,10 +195,10 @@ def test_new_round_clears_line_and_round_seen_but_keeps_seen(qapp, tmp_path):
     assert window.manager.seen[9]["regular"] == 1
 
 
-# -- Reshuffle: only own held cards stay marked seen; round_seen/line untouched --
+# -- Reshuffle: everyone still in play this round stays marked seen; round_seen/line untouched --
 
 
-def test_reshuffle_keeps_only_held_cards_seen_and_leaves_round_seen_and_line_untouched(qapp, tmp_path):
+def test_reshuffle_keeps_everyone_in_this_round_marked_seen_and_leaves_round_seen_and_line_untouched(qapp, tmp_path):
     window = MainWindow(state_path=tmp_path / "state.json")
     window._on_log_my_card(9, "regular")
     window._on_log_other_player_card(5, "regular")
@@ -193,9 +209,9 @@ def test_reshuffle_keeps_only_held_cards_seen_and_leaves_round_seen_and_line_unt
     window._on_reshuffle()
 
     assert window.manager.seen[9]["regular"] == 1  # my held card stays seen
-    assert window.manager.seen[5]["regular"] == 0  # someone else's reveal is forgotten
+    assert window.manager.seen[5]["regular"] == 1  # revealed this round -- presumed still on the table
 
-    # The gap flagged by prior reviews: reshuffle must not touch round_seen or line.
+    # reshuffle must not touch round_seen or line themselves.
     assert window.manager.round_seen == round_seen_before
     assert window.manager.line == line_before
 
@@ -215,6 +231,8 @@ def test_new_game_resets_seen_line_and_round_seen(qapp, tmp_path):
     assert window.manager.seen[5]["regular"] == 0
     assert window.manager.round_seen[9]["regular"] == 0
     assert window.manager.round_seen[5]["regular"] == 0
+    assert window.manager.recent_cards == []
+    assert window.recent_label.text() == "–"
 
 
 # -- Persistence round-trip: closing and relaunching restores state ------
@@ -236,18 +254,29 @@ def test_persistence_round_trip_across_window_instances(qapp, tmp_path):
     assert window2.manager.seen[5]["regular"] == window1.manager.seen[5]["regular"]
 
 
-# -- Manual edit path: spin box change is undoable ------------------------
+# -- Double-click a pool chip: steal it straight into the line -----------
 
 
-def test_manual_seen_edit_and_undo(qapp, tmp_path):
+def test_double_click_pool_chip_steals_it_into_the_line(qapp, tmp_path):
     window = MainWindow(state_path=tmp_path / "state.json")
-    assert window.manager.seen[9]["regular"] == 0
+    window._on_log_other_player_card(5, "regular")  # revealed by someone else -> lands in the pool
 
-    window._on_manual_seen_changed(9, "regular", 3)
-    assert window.manager.seen[9]["regular"] == 3
+    window._on_pool_number_double_clicked(5, "regular")
 
-    window._on_undo()
-    assert window.manager.seen[9]["regular"] == 0
+    assert 5 in window.manager.line.values
+    assert window.manager.pending_pool_selection is None
+
+
+def test_double_click_pool_chip_blocked_when_it_would_bust(qapp, tmp_path, monkeypatch):
+    window = MainWindow(state_path=tmp_path / "state.json")
+    window._on_log_my_card(5, "regular")  # already held
+    window._on_log_other_player_card(5, "regular")  # a second 5 revealed by someone else
+    line_before = window.manager.line
+
+    monkeypatch.setattr(QMessageBox, "warning", lambda *args, **kwargs: None)
+    window._on_pool_number_double_clicked(5, "regular")
+
+    assert window.manager.line == line_before  # unchanged: taking it would bust
 
 
 # -- pool_available called directly (previously never exercised) ---------

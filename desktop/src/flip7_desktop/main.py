@@ -5,9 +5,14 @@ from PySide6.QtWidgets import QApplication
 from .gui.main_window import MainWindow
 
 STYLE_SHEET = """
+QPushButton {
+    padding: 1px 5px;
+    min-width: 0px;
+    font-size: 9pt;
+}
 QPushButton[chipRole="held"] {
     border-radius: 10px;
-    padding: 2px 10px;
+    padding: 2px 8px;
 }
 QPushButton[chipRole="poolSelected"] {
     background-color: #f4c95d;

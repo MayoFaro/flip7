@@ -4,6 +4,7 @@ from flip7_desktop.line import (
     add_lucky13_card,
     add_unlucky7_card,
     remove_card_from_line,
+    mark_busted,
     compute_raw_score,
 )
 
@@ -15,6 +16,7 @@ def test_empty_line_defaults():
     assert not line.has_lucky_13
     assert line.seven_kind is None
     assert line.card_count == 0
+    assert not line.busted
 
 
 def test_add_card_to_line_tracks_regular_seven():
@@ -84,3 +86,25 @@ def test_compute_raw_score_counts_doubled_thirteen_twice():
     line = add_card_to_line(line, 13)
     line = add_lucky13_card(line)
     assert compute_raw_score(line) == 26
+
+
+def test_mark_busted_keeps_values_but_sets_the_flag():
+    line = add_card_to_line(create_empty_line(), 5)
+    line = mark_busted(line)
+    assert line.busted
+    assert line.values == frozenset({5})
+    assert line.card_count == 1  # unchanged -- marking busted adds no card
+
+
+def test_compute_raw_score_is_zero_once_busted():
+    line = create_empty_line()
+    for v in (0, 1, 2, 3, 4, 5, 6):
+        line = add_card_to_line(line, v)
+    line = mark_busted(line)
+    assert compute_raw_score(line) == 0  # even a completed Flip 7 scores 0 once busted
+
+
+def test_add_unlucky7_clears_a_prior_bust():
+    line = mark_busted(add_card_to_line(create_empty_line(), 5))
+    line = add_unlucky7_card(line)
+    assert not line.busted

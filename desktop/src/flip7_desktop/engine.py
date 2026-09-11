@@ -140,7 +140,9 @@ def recommend(seen: dict, line: Line) -> Recommendation:
     buckets = compute_buckets(seen, line)
     assert_partition(buckets)
     probabilities = compute_probabilities(buckets)
-    ev = compute_expected_value(seen, line)
     raw_score = compute_raw_score(line)
+    if line.busted:
+        return Recommendation(buckets=buckets, probabilities=probabilities, ev=0.0, raw_score=raw_score, action="BUSTED")
+    ev = compute_expected_value(seen, line)
     action = "HIT" if ev > raw_score else "STAY"
     return Recommendation(buckets=buckets, probabilities=probabilities, ev=ev, raw_score=raw_score, action=action)

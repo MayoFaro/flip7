@@ -10,8 +10,6 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QLabel,
     QPushButton,
-    QSpinBox,
-    QFormLayout,
     QMessageBox,
 )
 
@@ -42,8 +40,6 @@ class MainWindow(QMainWindow):
         self.seen_buttons = {}
         self.line_buttons = {}
         self.special_buttons = {}
-        self.manual_seen_inputs = {}
-        self.manual_special_inputs = {}
 
         central = QWidget()
         central.installEventFilter(self)
@@ -58,8 +54,6 @@ class MainWindow(QMainWindow):
         columns.addWidget(self._build_line_group(), 1)
         columns.addWidget(self._build_pool_group(), 1)
         root.addLayout(columns)
-
-        root.addWidget(self._build_manual_edit_group())
 
         self.render()
 
@@ -164,35 +158,6 @@ class MainWindow(QMainWindow):
         outer.addWidget(pool_container)
         return group
 
-    def _build_manual_edit_group(self):
-        group = QGroupBox("Correction manuelle")
-        group.setCheckable(True)
-        group.setChecked(False)
-        form = QFormLayout(group)
-        for v in CARD_VALUES:
-            for kind in ("regular", "special"):
-                max_count = SHOE_BASE[v][kind]
-                if max_count == 0:
-                    continue
-                spin = QSpinBox()
-                spin.setRange(0, max_count)
-                spin.valueChanged.connect(partial(self._on_manual_seen_changed, v, kind))
-                self.manual_seen_inputs[(v, kind)] = spin
-                form.addRow(f"{card_label(v, kind)} vues :", spin)
-        for type_id, type_def in MODIFIER_TYPES.items():
-            spin = QSpinBox()
-            spin.setRange(0, type_def["max"])
-            spin.valueChanged.connect(partial(self._on_manual_special_changed, "modifier", type_id))
-            self.manual_special_inputs[("modifier", type_id)] = spin
-            form.addRow(f"{type_def['label']} vues :", spin)
-        for type_id, type_def in ACTION_TYPES.items():
-            spin = QSpinBox()
-            spin.setRange(0, type_def["max"])
-            spin.valueChanged.connect(partial(self._on_manual_special_changed, "action", type_id))
-            self.manual_special_inputs[("action", type_id)] = spin
-            form.addRow(f"{type_def['label']} vues :", spin)
-        return group
-
     # -- click handlers -----------------------------------------------
 
     def _on_log_other_player_card(self, value, kind):
@@ -230,6 +195,15 @@ class MainWindow(QMainWindow):
         self.manager.pending_pool_selection = (value, kind)
         self.render()
 
+    def _on_pool_number_double_clicked(self, value, kind):
+        try:
+            self.manager.steal_pool_card(value, kind)
+        except SwapBlocked as err:
+            QMessageBox.warning(self, "Flip 7", str(err))
+            self.render()
+            return
+        self._save_and_render()
+
     def _on_claim_pool_modifier(self, category, type_id):
         self.manager.claim_pool_modifier(category, type_id)
         self._save_and_render()
@@ -248,19 +222,6 @@ class MainWindow(QMainWindow):
 
     def _on_new_game(self):
         self.manager.new_game()
-        self._save_and_render()
-
-    def _on_manual_seen_changed(self, value, kind, new_count):
-        if new_count == self.manager.seen[value][kind]:
-            return
-        self.manager.set_seen_count(value, kind, new_count)
-        self._save_and_render()
-
-    def _on_manual_special_changed(self, category, type_id, new_count):
-        key = "modifier_types" if category == "modifier" else "action_types"
-        if new_count == self.manager.seen[key][type_id]:
-            return
-        self.manager.set_special_seen_count(category, type_id, new_count)
         self._save_and_render()
 
     # -- click-outside cancels a pending pool selection ----------------
@@ -289,6 +250,11 @@ class MainWindow(QMainWindow):
         result = self.manager.recommendation()
         self.bust_label.setText(f"Bust : {result.probabilities['bust'] * 100:.1f} %")
         self.recommendation_label.setText(result.action)
+        self.recommendation_label.setStyleSheet(
+            "font-size: 14pt; font-weight: bold; color: #c0392b;"
+            if result.action == "BUSTED"
+            else "font-size: 14pt; font-weight: bold;"
+        )
         self.deck_count_label.setText(str(result.buckets.d))
         self.recent_label.setText(
             ", ".join(reversed(self.manager.recent_cards)) if self.manager.recent_cards else "–"
@@ -297,23 +263,13 @@ class MainWindow(QMainWindow):
         for (v, kind), btn in self.seen_buttons.items():
             btn.setDisabled(remaining_count(self.manager.seen, v, kind) == 0)
         for (v, kind), btn in self.line_buttons.items():
-            btn.setDisabled(remaining_count(self.manager.seen, v, kind) == 0)
+            btn.setDisabled(self.manager.line.busted or remaining_count(self.manager.seen, v, kind) == 0)
         for (category, type_id), buttons in self.special_buttons.items():
             key = "modifier_types" if category == "modifier" else "action_types"
             type_def = MODIFIER_TYPES[type_id] if category == "modifier" else ACTION_TYPES[type_id]
             disabled = self.manager.seen[key][type_id] >= type_def["max"]
             for btn in buttons:
                 btn.setDisabled(disabled)
-
-        for (v, kind), spin in self.manual_seen_inputs.items():
-            spin.blockSignals(True)
-            spin.setValue(self.manager.seen[v][kind])
-            spin.blockSignals(False)
-        for (category, type_id), spin in self.manual_special_inputs.items():
-            key = "modifier_types" if category == "modifier" else "action_types"
-            spin.blockSignals(True)
-            spin.setValue(self.manager.seen[key][type_id])
-            spin.blockSignals(False)
 
         self._render_my_cards()
         self._render_pool()
@@ -354,6 +310,7 @@ class MainWindow(QMainWindow):
                     f"{card_label(v, kind)} ({available})",
                     partial(self._on_pool_number_clicked, v, kind),
                     selected=selected,
+                    on_double_click=partial(self._on_pool_number_double_clicked, v, kind),
                 )
                 self.pool_layout.addWidget(btn)
         for type_id, type_def in MODIFIER_TYPES.items():
